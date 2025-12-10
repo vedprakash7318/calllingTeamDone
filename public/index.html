@@ -5,6 +5,31 @@
   <link rel="stylesheet" href="style.css" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Additional styles for serial numbers */
+    .card-sr {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #34495e;
+      color: white;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    
+    .table-sr {
+      font-weight: bold;
+      color: #2c3e50;
+      width: 50px;
+      text-align: center;
+    }
+  </style>
 </head>
 
 <body>
@@ -21,6 +46,15 @@
       <button class="btn black" onclick="location.reload()">
         <i class="fas fa-sync-alt"></i> Refresh
       </button>
+      <div class="records-per-page">
+        <label for="records-per-page-select">Records per page:</label>
+        <select id="records-per-page-select" onchange="changeRecordsPerPage(this.value)">
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+        </select>
+      </div>
     </div>
 
     <!-- Card View for Mobile -->
@@ -31,6 +65,7 @@
       <table class="table-view">
         <thead>
           <tr>
+            <th class="table-sr">Sr. No</th>
             <th>Name</th>
             <th>Registered For</th>
             <th>Mobile</th>
@@ -66,17 +101,30 @@
     let currentPage = 1;
     let totalPages = 0;
     let totalRecords = 0;
+    let recordsPerPage = 100;
 
     function loadData(page = 1) {
-      fetch(`/api/data?page=${page}`)
-        .then(res => res.json())
+      fetch(`/api/data?page=${page}&limit=${recordsPerPage}`)
         .then(res => {
-          currentPage = page;
-          totalPages = res.totalPages;
-          totalRecords = res.totalRecords;
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(res => {
+          if (!res.data) {
+            throw new Error('Invalid response format from server');
+          }
           
-          updateCardView(res.data);
-          updateTableView(res.data);
+          currentPage = page;
+          totalPages = res.totalPages || 1;
+          totalRecords = res.totalRecords || res.data.length;
+          
+          // Calculate starting serial number for this page
+          const startSerial = ((currentPage - 1) * recordsPerPage) + 1;
+          
+          updateCardView(res.data, startSerial);
+          updateTableView(res.data, startSerial);
           updatePagination();
           updatePageInfo();
         })
@@ -84,13 +132,22 @@
           console.error('Error loading data:', error);
           document.getElementById('card-container').innerHTML = 
             '<div class="card"><p style="text-align: center; color: #e74c3c;">Error loading data. Please try again.</p></div>';
+          document.getElementById('table-body').innerHTML = `
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 40px; color: #e74c3c;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 20px; display: block;"></i>
+                <h3>Error Loading Data</h3>
+                <p>${error.message}</p>
+              </td>
+            </tr>
+          `;
         });
     }
 
-    function updateCardView(data) {
+    function updateCardView(data, startSerial) {
       const cardsContainer = document.getElementById('card-container');
       
-      if (data.length === 0) {
+      if (!data || data.length === 0) {
         cardsContainer.innerHTML = `
           <div class="card" style="text-align: center;">
             <h3>No Data Available</h3>
@@ -105,40 +162,46 @@
 
       cardsContainer.innerHTML = '';
       
-      data.forEach(row => {
-        let phone = row.Mobile || row.WhatsApp || "";
+      data.forEach((row, index) => {
+        const srNo = startSerial + index;
+        let phone = row.Mobile || row.WhatsApp || row.Phone || "";
         let msg = encodeURIComponent(`Hello ${row.Name || ""}`);
+        
+        // Clean phone number - remove any non-numeric characters
+        phone = phone.toString().replace(/\D/g, '');
         
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
+          <div class="card-sr">${srNo}</div>
           <h3><i class="fas fa-user-graduate"></i> ${row.Name || "No Name"}</h3>
-          <p><strong><i class="fas fa-clipboard-check"></i> Registered:</strong> ${row["Registered For"] || "-"}</p>
-          <p><strong><i class="fas fa-phone"></i> Mobile:</strong> ${row.Mobile || "-"}</p>
+          <p><strong><i class="fas fa-clipboard-check"></i> Registered:</strong> ${row["Registered For"] || row.Registered || "-"}</p>
+          <p><strong><i class="fas fa-phone"></i> Mobile:</strong> ${phone || "-"}</p>
           <p><strong><i class="fas fa-calendar-alt"></i> Year:</strong> ${row.Year || "-"}</p>
           <p><strong><i class="fas fa-book"></i> Course:</strong> ${row.Course || "-"}</p>
           <p><strong><i class="fas fa-university"></i> College:</strong> ${row.College || "-"}</p>
 
           <div class="action-btns">
-            <a href="https://wa.me/${phone}?text=${msg}" target="_blank" class="btn whatsapp">
+            ${phone ? `<a href="https://wa.me/${phone}?text=${msg}" target="_blank" class="btn whatsapp">
               <i class="fab fa-whatsapp"></i> WhatsApp
-            </a>
-            <a href="tel:${phone}" class="btn call">
+            </a>` : '<button class="btn whatsapp" disabled><i class="fab fa-whatsapp"></i> No Number</button>'}
+            
+            ${phone ? `<a href="tel:${phone}" class="btn call">
               <i class="fas fa-phone"></i> Call
-            </a>
+            </a>` : '<button class="btn call" disabled><i class="fas fa-phone"></i> No Number</button>'}
           </div>
         `;
         cardsContainer.appendChild(card);
       });
     }
 
-    function updateTableView(data) {
+    function updateTableView(data, startSerial) {
       const tableBody = document.getElementById('table-body');
       
-      if (data.length === 0) {
+      if (!data || data.length === 0) {
         tableBody.innerHTML = `
           <tr>
-            <td colspan="7" style="text-align: center; padding: 40px; color: #7f8c8d;">
+            <td colspan="8" style="text-align: center; padding: 40px; color: #7f8c8d;">
               <i class="fas fa-database" style="font-size: 48px; margin-bottom: 20px; display: block;"></i>
               <h3>No Data Available</h3>
               <p>Upload an Excel file to get started</p>
@@ -150,25 +213,31 @@
 
       tableBody.innerHTML = '';
       
-      data.forEach(row => {
-        let phone = row.Mobile || row.WhatsApp || "";
+      data.forEach((row, index) => {
+        const srNo = startSerial + index;
+        let phone = row.Mobile || row.WhatsApp || row.Phone || "";
         let msg = encodeURIComponent(`Hello ${row.Name || ""}`);
+        
+        // Clean phone number
+        phone = phone.toString().replace(/\D/g, '');
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
+          <td class="table-sr">${srNo}</td>
           <td><i class="fas fa-user"></i> ${row.Name || "No Name"}</td>
-          <td>${row["Registered For"] || "-"}</td>
-          <td><i class="fas fa-phone"></i> ${row.Mobile || "-"}</td>
+          <td>${row["Registered For"] || row.Registered || "-"}</td>
+          <td><i class="fas fa-phone"></i> ${phone || "-"}</td>
           <td>${row.Year || "-"}</td>
           <td>${row.Course || "-"}</td>
           <td>${row.College || "-"}</td>
           <td class="action-cell">
-            <a href="https://wa.me/${phone}?text=${msg}" target="_blank" class="btn whatsapp">
+            ${phone ? `<a href="https://wa.me/${phone}?text=${msg}" target="_blank" class="btn whatsapp" title="WhatsApp">
               <i class="fab fa-whatsapp"></i>
-            </a>
-            <a href="tel:${phone}" class="btn call">
+            </a>` : '<button class="btn whatsapp" disabled title="No phone number"><i class="fab fa-whatsapp"></i></button>'}
+            
+            ${phone ? `<a href="tel:${phone}" class="btn call" title="Call">
               <i class="fas fa-phone"></i>
-            </a>
+            </a>` : '<button class="btn call" disabled title="No phone number"><i class="fas fa-phone"></i></button>'}
           </td>
         `;
         tableBody.appendChild(tr);
@@ -242,16 +311,41 @@
 
     function updatePageInfo() {
       const pageInfo = document.getElementById('page-info');
-      const startRecord = (currentPage - 1) * 10 + 1;
-      const endRecord = Math.min(currentPage * 10, totalRecords);
+      const startRecord = ((currentPage - 1) * recordsPerPage) + 1;
+      const endRecord = Math.min(currentPage * recordsPerPage, totalRecords);
       
       pageInfo.textContent = `Showing ${startRecord}-${endRecord} of ${totalRecords} records`;
     }
 
+    function changeRecordsPerPage(value) {
+      recordsPerPage = parseInt(value);
+      currentPage = 1; // Reset to first page when changing records per page
+      loadData(1);
+    }
+
     // Load data on page load
     document.addEventListener('DOMContentLoaded', () => {
+      // Set the dropdown to show current value
+      document.getElementById('records-per-page-select').value = recordsPerPage;
       loadData(1);
     });
+
+    // Debug function to check API response
+    function debugAPI() {
+      console.log('Testing API...');
+      fetch('/api/data?page=1&limit=10')
+        .then(res => {
+          console.log('Response status:', res.status);
+          return res.json();
+        })
+        .then(data => {
+          console.log('API Response:', data);
+          console.log('Data length:', data.data?.length);
+          console.log('Total records:', data.totalRecords);
+          console.log('Total pages:', data.totalPages);
+        })
+        .catch(err => console.error('Debug error:', err));
+    }
   </script>
 </body>
 </html>

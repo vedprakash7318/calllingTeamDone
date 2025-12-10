@@ -64,7 +64,7 @@ app.get("/api/data", (req, res) => {
     const data = JSON.parse(fs.readFileSync(file, "utf8"));
 
     const page = parseInt(req.query.page) || 1;
-    const limit = 10;
+    const limit = 100;
     const start = (page - 1) * limit;
     const end = start + limit;
 
