@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Students Directory</title>
+  <link rel="stylesheet" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h2><i class="fas fa-graduation-cap"></i> Students Directory</h2>
+      <p>Browse and contact students easily</p>
+    </div>
+
+    <div class="top-buttons">
+      <a href="/upload.html" class="btn black">
+        <i class="fas fa-upload"></i> Upload New File
+      </a>
+      <button class="btn black" onclick="location.reload()">
+        <i class="fas fa-sync-alt"></i> Refresh
+      </button>
+    </div>
+
+    <!-- Card View for Mobile -->
+    <div id="card-container" class="card-container"></div>
+
+    <!-- Table View for Desktop -->
+    <div class="table-container">
+      <table class="table-view">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Registered For</th>
+            <th>Mobile</th>
+            <th>Year</th>
+            <th>Course</th>
+            <th>College</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <!-- Data will be inserted here by JavaScript -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-container">
+      <button id="prev-btn" class="pagination-btn" disabled>
+        <i class="fas fa-chevron-left"></i> Prev
+      </button>
+      
+      <div id="pagination" class="pagination"></div>
+      
+      <button id="next-btn" class="pagination-btn" disabled>
+        Next <i class="fas fa-chevron-right"></i>
+      </button>
+      
+      <div id="page-info" class="page-info"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentPage = 1;
+    let totalPages = 0;
+    let totalRecords = 0;
+
+    function loadData(page = 1) {
+      fetch(`/api/data?page=${page}`)
+        .then(res => res.json())
+        .then(res => {
+          currentPage = page;
+          totalPages = res.totalPages;
+          totalRecords = res.totalRecords;
+          
+          updateCardView(res.data);
+          updateTableView(res.data);
+          updatePagination();
+          updatePageInfo();
+        })
+        .catch(error => {
+          console.error('Error loading data:', error);
+          document.getElementById('card-container').innerHTML = 
+            '<div class="card"><p style="text-align: center; color: #e74c3c;">Error loading data. Please try again.</p></div>';
+        });
+    }
+
+    function updateCardView(data) {
+      const cardsContainer = document.getElementById('card-container');
+      
+      if (data.length === 0) {
+        cardsContainer.innerHTML = `
+          <div class="card" style="text-align: center;">
+            <h3>No Data Available</h3>
+            <p>Please upload an Excel file to get started.</p>
+            <a href="/upload.html" class="btn black" style="margin-top: 15px;">
+              <i class="fas fa-upload"></i> Upload File
+            </a>
+          </div>
+        `;
+        return;
+      }
+
+      cardsContainer.innerHTML = '';
+      
+      data.forEach(row => {
+        let phone = row.Mobile || row.WhatsApp || "";
+        let msg = encodeURIComponent(`Hello ${row.Name || ""}`);
+        
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <h3><i class="fas fa-user-graduate"></i> ${row.Name || "No Name"}</h3>
+          <p><strong><i class="fas fa-clipboard-check"></i> Registered:</strong> ${row["Registered For"] || "-"}</p>
+          <p><strong><i class="fas fa-phone"></i> Mobile:</strong> ${row.Mobile || "-"}</p>
+          <p><strong><i class="fas fa-calendar-alt"></i> Year:</strong> ${row.Year || "-"}</p>
+          <p><strong><i class="fas fa-book"></i> Course:</strong> ${row.Course || "-"}</p>
+          <p><strong><i class="fas fa-university"></i> College:</strong> ${row.College || "-"}</p>
+
+          <div class="action-btns">
+            <a href="https://wa.me/${phone}?text=${msg}" target="_blank" class="btn whatsapp">
+              <i class="fab fa-whatsapp"></i> WhatsApp
+            </a>
+            <a href="tel:${phone}" class="btn call">
+              <i class="fas fa-phone"></i> Call
+            </a>
+          </div>
+        `;
+        cardsContainer.appendChild(card);
+      });
+    }
+
+    function updateTableView(data) {
+      const tableBody = document.getElementById('table-body');
+      
+      if (data.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 40px; color: #7f8c8d;">
+              <i class="fas fa-database" style="font-size: 48px; margin-bottom: 20px; display: block;"></i>
+              <h3>No Data Available</h3>
+              <p>Upload an Excel file to get started</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tableBody.innerHTML = '';
+      
+      data.forEach(row => {
+        let phone = row.Mobile || row.WhatsApp || "";
+        let msg = encodeURIComponent(`Hello ${row.Name || ""}`);
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><i class="fas fa-user"></i> ${row.Name || "No Name"}</td>
+          <td>${row["Registered For"] || "-"}</td>
+          <td><i class="fas fa-phone"></i> ${row.Mobile || "-"}</td>
+          <td>${row.Year || "-"}</td>
+          <td>${row.Course || "-"}</td>
+          <td>${row.College || "-"}</td>
+          <td class="action-cell">
+            <a href="https://wa.me/${phone}?text=${msg}" target="_blank" class="btn whatsapp">
+              <i class="fab fa-whatsapp"></i>
+            </a>
+            <a href="tel:${phone}" class="btn call">
+              <i class="fas fa-phone"></i>
+            </a>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    }
+
+    function updatePagination() {
+      const pagination = document.getElementById('pagination');
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+      
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = currentPage === totalPages;
+      
+      prevBtn.onclick = () => {
+        if (currentPage > 1) loadData(currentPage - 1);
+      };
+      
+      nextBtn.onclick = () => {
+        if (currentPage < totalPages) loadData(currentPage + 1);
+      };
+      
+      let paginationHTML = '';
+      const maxVisiblePages = 5;
+      
+      if (totalPages <= maxVisiblePages) {
+        for (let i = 1; i <= totalPages; i++) {
+          paginationHTML += `
+            <button class="pagination-number ${i === currentPage ? 'active' : ''}" 
+                    onclick="loadData(${i})">
+              ${i}
+            </button>
+          `;
+        }
+      } else {
+        let start = Math.max(1, currentPage - 2);
+        let end = Math.min(totalPages, start + maxVisiblePages - 1);
+        
+        if (end - start < maxVisiblePages - 1) {
+          start = Math.max(1, end - maxVisiblePages + 1);
+        }
+        
+        if (start > 1) {
+          paginationHTML += `
+            <button class="pagination-number" onclick="loadData(1)">1</button>
+            <span class="pagination-dots">...</span>
+          `;
+        }
+        
+        for (let i = start; i <= end; i++) {
+          paginationHTML += `
+            <button class="pagination-number ${i === currentPage ? 'active' : ''}" 
+                    onclick="loadData(${i})">
+              ${i}
+            </button>
+          `;
+        }
+        
+        if (end < totalPages) {
+          paginationHTML += `
+            <span class="pagination-dots">...</span>
+            <button class="pagination-number" onclick="loadData(${totalPages})">
+              ${totalPages}
+            </button>
+          `;
+        }
+      }
+      
+      pagination.innerHTML = paginationHTML;
+    }
+
+    function updatePageInfo() {
+      const pageInfo = document.getElementById('page-info');
+      const startRecord = (currentPage - 1) * 10 + 1;
+      const endRecord = Math.min(currentPage * 10, totalRecords);
+      
+      pageInfo.textContent = `Showing ${startRecord}-${endRecord} of ${totalRecords} records`;
+    }
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData(1);
+    });
+  </script>
+</body>
+</html>
