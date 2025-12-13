@@ -49,9 +49,9 @@
       <div class="records-per-page">
         <label for="records-per-page-select">Records per page:</label>
         <select id="records-per-page-select" onchange="changeRecordsPerPage(this.value)">
-          <option value="10">10</option>
+          <!-- <option value="10">10</option>
           <option value="20">20</option>
-          <option value="50">50</option>
+          <option value="50">50</option> -->
           <option value="100" selected>100</option>
         </select>
       </div>
@@ -97,7 +97,7 @@
     </div>
   </div>
 
-  <script>
+  <!-- <script>
     let currentPage = 1;
     let totalPages = 0;
     let totalRecords = 0;
@@ -346,6 +346,159 @@
         })
         .catch(err => console.error('Debug error:', err));
     }
-  </script>
+  </script> -->
+
+
+
+  <script>
+  let currentPage = 1;
+  let totalPages = 0;
+  let totalRecords = 0;
+
+  // 🔥 LOAD recordsPerPage FROM localStorage
+  let recordsPerPage = parseInt(localStorage.getItem("recordsPerPage")) || 100;
+
+  // ================= LOAD DATA =================
+  function loadData(page = 1) {
+
+    // 🔥 SAVE CURRENT PAGE
+    localStorage.setItem("currentPage", page);
+
+    fetch(`/api/data?page=${page}&limit=${recordsPerPage}`)
+      .then(res => {
+        if (!res.ok) throw new Error("Server Error");
+        return res.json();
+      })
+      .then(res => {
+        currentPage = page;
+        totalPages = res.totalPages || 1;
+        totalRecords = res.totalRecords || res.data.length;
+
+        const startSerial = (currentPage - 1) * recordsPerPage + 1;
+
+        updateCardView(res.data, startSerial);
+        updateTableView(res.data, startSerial);
+        updatePagination();
+        updatePageInfo();
+      })
+      .catch(err => {
+        console.error(err);
+      });
+  }
+
+  // ================= CARD VIEW =================
+  function updateCardView(data, startSerial) {
+    const cardsContainer = document.getElementById("card-container");
+
+    if (!data || data.length === 0) {
+      cardsContainer.innerHTML = `<div class="card">No Data</div>`;
+      return;
+    }
+
+    cardsContainer.innerHTML = "";
+
+    data.forEach((row, index) => {
+      const srNo = startSerial + index;
+      let phone = row.Mobile || row.Phone || row.WhatsApp || "";
+      phone = phone.toString().replace(/\D/g, "");
+      let msg = encodeURIComponent(`Hello ${row.Name || ""}`);
+
+      cardsContainer.innerHTML += `
+        <div class="card">
+          <div class="card-sr">${srNo}</div>
+          <h3>${row.Name || "-"}</h3>
+          <p><b>Mobile:</b> ${phone || "-"}</p>
+
+          <div class="action-btns">
+            ${phone ? `
+              <a href="https://wa.me/${phone}?text=${msg}" class="btn whatsapp" target="_blank">
+                <i class="fab fa-whatsapp"></i> WhatsApp
+              </a>
+              <a href="tel:${phone}" class="btn call">
+                <i class="fas fa-phone"></i> Call
+              </a>
+            ` : `
+              <button class="btn" disabled>No Number</button>
+            `}
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  // ================= TABLE VIEW =================
+  function updateTableView(data, startSerial) {
+    const tableBody = document.getElementById("table-body");
+    tableBody.innerHTML = "";
+
+    data.forEach((row, index) => {
+      tableBody.innerHTML += `
+        <tr>
+          <td class="table-sr">${startSerial + index}</td>
+          <td>${row.Name || "-"}</td>
+          <td>${row["Registered For"] || "-"}</td>
+          <td>${row.Mobile || "-"}</td>
+          <td>${row.Year || "-"}</td>
+          <td>${row.Course || "-"}</td>
+          <td>${row.College || "-"}</td>
+          <td>-</td>
+        </tr>
+      `;
+    });
+  }
+
+  // ================= PAGINATION =================
+  function updatePagination() {
+    const pagination = document.getElementById("pagination");
+    const prevBtn = document.getElementById("prev-btn");
+    const nextBtn = document.getElementById("next-btn");
+
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages;
+
+    prevBtn.onclick = () => loadData(currentPage - 1);
+    nextBtn.onclick = () => loadData(currentPage + 1);
+
+    pagination.innerHTML = "";
+
+    for (let i = 1; i <= totalPages; i++) {
+      pagination.innerHTML += `
+        <button class="pagination-number ${i === currentPage ? "active" : ""}"
+          onclick="loadData(${i})">
+          ${i}
+        </button>
+      `;
+    }
+  }
+
+  // ================= PAGE INFO =================
+  function updatePageInfo() {
+    const start = (currentPage - 1) * recordsPerPage + 1;
+    const end = Math.min(currentPage * recordsPerPage, totalRecords);
+    document.getElementById("page-info").innerText =
+      `Showing ${start}-${end} of ${totalRecords}`;
+  }
+
+  // ================= RECORDS PER PAGE =================
+  function changeRecordsPerPage(value) {
+    recordsPerPage = parseInt(value);
+    localStorage.setItem("recordsPerPage", recordsPerPage);
+    loadData(1);
+  }
+
+  // ================= PAGE LOAD =================
+  document.addEventListener("DOMContentLoaded", () => {
+
+    // 🔥 RESTORE PAGE FROM localStorage
+    currentPage = parseInt(localStorage.getItem("currentPage")) || 1;
+
+    document.getElementById("records-per-page-select").value = recordsPerPage;
+
+    loadData(currentPage);
+  });
+</script>
+
+
+
 </body>
 </html>
